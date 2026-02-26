@@ -1,117 +1,6 @@
 import pandas as pd
 import streamlit as st
 from datetime import date
-
-# ================================
-# CONFIGURAÇÕES INICIAIS
-# ================================
-st.set_page_config(layout='wide', page_title="Actions Televendas")
-st.title('ACTIONS TELEVENDAS :chart_with_upwards_trend:')
-
-# ================================
-# FUNÇÕES AUXILIARES
-# ================================
-
-@st.cache_data
-def carregar_dados():
-    # Leitura dos arquivos
-    dados = pd.read_csv('dados_analisados.csv')
-    hora = pd.read_csv('HORA.csv')
-    
-    # 1. TRATAMENTO GLOBAL: Trim (remover espaços vazios)
-    dados = dados.applymap(lambda x: x.strip() if isinstance(x, str) else x)
-    hora = hora.applymap(lambda x: x.strip() if isinstance(x, str) else x)
-    
-    # 2. PADRONIZAÇÃO: Maiúsculas para evitar 'Joao' vs 'JOAO'
-    if 'SUPERVISOR' in dados.columns:
-        dados['SUPERVISOR'] = dados['SUPERVISOR'].str.upper()
-    
-    if 'SUPERVISOR' in hora.columns:
-        hora['SUPERVISOR'] = hora['SUPERVISOR'].str.upper()
-    
-    if 'NOME' in hora.columns:
-        hora['NOME'] = hora['NOME'].str.upper()
-
-    # 3. DATAS: Conversão e remoção de inválidos
-    dados['fecha_accion'] = pd.to_datetime(dados['fecha_accion'], errors='coerce')
-    hora['DATA'] = pd.to_datetime(hora['DATA'], errors='coerce')
-    
-    dados = dados.dropna(subset=['fecha_accion'])
-    hora = hora.dropna(subset=['DATA'])
-    
-    return dados, hora
-
-def color_total(val):
-    try:
-        val = float(val)
-        if val > 130:
-            return 'background-color: green; color: white'
-        elif val < 130:
-            return 'background-color: yellow; color: black'
-    except:
-        pass
-    return ''
-
-# ================================
-# CARREGANDO DADOS
-# ================================
-dados, hora = carregar_dados()
-
-# ================================
-# PREPARANDO FILTROS
-# ================================
-hoje = date.today()
-
-datas_dados = dados[dados['fecha_accion'].dt.date <= hoje]['fecha_accion'].dt.date.unique()
-datas_hora = hora[hora['DATA'].dt.date <= hoje]['DATA'].dt.date.unique()
-datas_disponiveis = sorted(set(datas_dados) | set(datas_hora), reverse=True)
-
-opcoes_datas = ['Todas as datas'] + [str(data) for data in datas_disponiveis]
-todos_supervisores = sorted(set(dados['SUPERVISOR'].dropna().unique()) | set(hora['SUPERVISOR'].dropna().unique()))
-
-# ================================
-# SIDEBAR - FILTROS
-# ================================
-st.sidebar.header('Filtros')
-data_selecionada = st.sidebar.selectbox('📅 Selecione uma data:', opcoes_datas, index=0)
-supervisores_selecionados = st.sidebar.multiselect(
-    '👤 Selecione Supervisor(es):',
-    options=todos_supervisores,
-    default=[]
-)
-
-
-dados_filtrados = dados.copy()
-hora_filtrada = hora.copy()
-
-if data_selecionada != 'Todas as datas':
-    data_filtro = pd.to_datetime(data_selecionada).date()
-    dados_filtrados = dados_filtrados[dados_filtrados['fecha_accion'].dt.date == data_filtro]
-    hora_filtrada = hora_filtrada[hora_filtrada['DATA'].dt.date == data_filtro]
-
-if supervisores_selecionados:
-    dados_filtrados = dados_filtrados[dados_filtrados['SUPERVISOR'].isin(supervisores_selecionados)]
-    hora_filtrada = hora_filtrada[hora_filtrada['SUPERVISOR'].isin(supervisores_selecionados)]
-
-
-coluna1, coluna2 = st.columns(2)
-
-with coluna1:
-    st.header("ACTIONS :pushpin:")
-    if not dados_filtrados.empty:
-        # Consolidação de Actions por Supervisor/Data se necessário
-        # (Aqui você pode adicionar um groupby similar ao da coluna 2 se houver duplicatas)
-        st.dataframe(
-            dados_filtrados.style.applymap(color_total, subset=['Total']),
-            use_container_width=True,
-            hide_index=True
-        )
-    else:
-        st.warning("Nenhum dado encontrado para ACTIONS.")
-
-with coluna2:import pandas as pd
-import streamlit as st
-from datetime import date
 import os
 
 # ================================
@@ -120,7 +9,7 @@ import os
 st.set_page_config(layout='wide', page_title="Actions Televendas")
 st.title('ACTIONS TELEVENDAS :chart_with_upwards_trend:')
 
-# Identifica o caminho da pasta onde o Dashboard.py está
+# Define o caminho base como a pasta onde este script está salvo
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ================================
@@ -129,145 +18,133 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @st.cache_data
 def carregar_dados():
-    # Caminhos absolutos para evitar o FileNotFoundError no Streamlit Cloud
-    caminho_dados = os.path.join(BASE_DIR, 'dados_analisados.csv')
-    caminho_hora = os.path.join(BASE_DIR, 'HORA.csv')
+    # Nomes dos arquivos padronizados para letras minúsculas
+    arquivo_dados = 'dados_analisados.csv'
+    arquivo_hora = 'hora.csv'
     
-    # Verifica se os arquivos realmente existem antes de tentar ler
-    if not os.path.exists(caminho_dados) or not os.path.exists(caminho_hora):
-        st.error(f"⚠️ Erro: Arquivos CSV não encontrados na pasta do projeto!")
-        st.info(f"Certifique-se de que 'dados_analisados.csv' e 'HORA.csv' estão na raiz do seu GitHub.")
+    # Construção dos caminhos absolutos
+    caminho_dados = os.path.join(BASE_DIR, arquivo_dados)
+    caminho_hora = os.path.join(BASE_DIR, arquivo_hora)
+    
+    # Validação de existência física dos arquivos
+    if not os.path.exists(caminho_dados):
+        st.error(f"Arquivo não encontrado: {arquivo_dados}")
+        st.stop()
+    if not os.path.exists(caminho_hora):
+        st.error(f"Arquivo não encontrado: {arquivo_hora}")
+        st.info("Certifique-se de que o arquivo no seu computador/GitHub se chama 'hora.csv' (em minúsculo).")
         st.stop()
 
-    # Leitura dos arquivos
+    # Leitura dos arquivos CSV
     dados = pd.read_csv(caminho_dados)
     hora = pd.read_csv(caminho_hora)
     
-    # 1. TRATAMENTO GLOBAL: Trim (remover espaços vazios)
-    # .map é o substituto moderno do .applymap para DataFrames
+    # 1. TRATAMENTO: Remoção de espaços em branco nos textos
     dados = dados.map(lambda x: x.strip() if isinstance(x, str) else x)
     hora = hora.map(lambda x: x.strip() if isinstance(x, str) else x)
     
-    # 2. PADRONIZAÇÃO: Maiúsculas para evitar 'Joao' vs 'JOAO'
+    # 2. PADRONIZAÇÃO: Conteúdo em maiúsculo para consistência nos filtros
     if 'SUPERVISOR' in dados.columns:
-        dados['SUPERVISOR'] = dados['SUPERVISOR'].str.upper()
+        dados['SUPERVISOR'] = dados['SUPERVISOR'].astype(str).str.upper()
     
     if 'SUPERVISOR' in hora.columns:
-        hora['SUPERVISOR'] = hora['SUPERVISOR'].str.upper()
+        hora['SUPERVISOR'] = hora['SUPERVISOR'].astype(str).str.upper()
     
-    if 'NOME' in hora.columns:
-        hora['NOME'] = hora['NOME'].str.upper()
+    if 'OPERADOR' in hora.columns:
+        hora['OPERADOR'] = hora['OPERADOR'].astype(str).str.upper()
 
-    # 3. DATAS: Conversão e remoção de inválidos
+    # 3. DATAS: Conversão para formato datetime
     dados['fecha_accion'] = pd.to_datetime(dados['fecha_accion'], errors='coerce')
     hora['DATA'] = pd.to_datetime(hora['DATA'], errors='coerce')
     
+    # Remove linhas onde a data é inválida
     dados = dados.dropna(subset=['fecha_accion'])
     hora = hora.dropna(subset=['DATA'])
+    
+    # Garante que GESTIONES seja numérico
+    if 'GESTIONES' in hora.columns:
+        hora['GESTIONES'] = pd.to_numeric(hora['GESTIONES'], errors='coerce').fillna(0)
     
     return dados, hora
 
 def color_total(val):
+    """Aplica cores às células conforme o valor de produtividade"""
     try:
         val = float(val)
-        if val > 130:
-            return 'background-color: green; color: white'
+        if val >= 130:
+            return 'background-color: #2ecc71; color: white'  # Verde
         elif val < 130:
-            return 'background-color: yellow; color: black'
+            return 'background-color: #f1c40f; color: black'  # Amarelo
     except:
         pass
     return ''
 
 # ================================
-# CARREGANDO DADOS
+# PROCESSAMENTO DE DADOS
 # ================================
-# Tenta carregar os dados. Se falhar, o st.stop() dentro da função interrompe aqui.
 dados, hora = carregar_dados()
 
-# ================================
-# PREPARANDO FILTROS
-# ================================
+# --- PREPARAÇÃO DOS FILTROS ---
 hoje = date.today()
-
-datas_dados = dados[dados['fecha_accion'].dt.date <= hoje]['fecha_accion'].dt.date.unique()
-datas_hora = hora[hora['DATA'].dt.date <= hoje]['DATA'].dt.date.unique()
-datas_disponiveis = sorted(set(datas_dados) | set(datas_hora), reverse=True)
-
-opcoes_datas = ['Todas as datas'] + [str(data) for data in datas_disponiveis]
-todos_supervisores = sorted(set(dados['SUPERVISOR'].dropna().unique()) | set(hora['SUPERVISOR'].dropna().unique()))
-
-# ================================
-# SIDEBAR - FILTROS
-# ================================
-st.sidebar.header('Filtros')
-data_selecionada = st.sidebar.selectbox('📅 Selecione uma data:', opcoes_datas, index=0)
-supervisores_selecionados = st.sidebar.multiselect(
-    '👤 Selecione Supervisor(es):',
-    options=todos_supervisores,
-    default=[]
+datas_disponiveis = sorted(
+    set(dados['fecha_accion'].dt.date.unique()) | set(hora['DATA'].dt.date.unique()), 
+    reverse=True
 )
 
-# Filtros Lógicos
-dados_filtrados = dados.copy()
-hora_filtrada = hora.copy()
+opcoes_datas = ['Todas as datas'] + [str(d) for d in datas_disponiveis]
+todos_supervisores = sorted(set(dados['SUPERVISOR'].dropna().unique()) | set(hora['SUPERVISOR'].dropna().unique()))
 
-if data_selecionada != 'Todas as datas':
-    data_filtro = pd.to_datetime(data_selecionada).date()
-    dados_filtrados = dados_filtrados[dados_filtrados['fecha_accion'].dt.date == data_filtro]
-    hora_filtrada = hora_filtrada[hora_filtrada['DATA'].dt.date == data_filtro]
+# --- SIDEBAR (FILTROS) ---
+st.sidebar.header('Filtros')
+data_sel = st.sidebar.selectbox('📅 Selecione a Data:', opcoes_datas)
+super_sel = st.sidebar.multiselect('👤 Selecione o Supervisor:', options=todos_supervisores)
 
-if supervisores_selecionados:
-    dados_filtrados = dados_filtrados[dados_filtrados['SUPERVISOR'].isin(supervisores_selecionados)]
-    hora_filtrada = hora_filtrada[hora_filtrada['SUPERVISOR'].isin(supervisores_selecionados)]
+# Criando cópias para filtrar sem alterar o cache original
+df_a = dados.copy()
+df_h = hora.copy()
+
+# Lógica de Filtragem por Data
+if data_sel != 'Todas as datas':
+    dt_alvo = pd.to_datetime(data_sel).date()
+    df_a = df_a[df_a['fecha_accion'].dt.date == dt_alvo]
+    df_h = df_h[df_h['DATA'].dt.date == dt_alvo]
+
+# Lógica de Filtragem por Supervisor
+if super_sel:
+    df_a = df_a[df_a['SUPERVISOR'].isin(super_sel)]
+    df_h = df_h[df_h['SUPERVISOR'].isin(super_sel)]
 
 # ================================
-# EXIBIÇÃO DO DASHBOARD
+# INTERFACE DO DASHBOARD
 # ================================
-coluna1, coluna2 = st.columns(2)
+col1, col2 = st.columns(2)
 
-with coluna1:
+with col1:
     st.header("ACTIONS :pushpin:")
-    if not dados_filtrados.empty:
-        # Nota: Ajustado applymap para map aqui também para seguir padrão Pandas 2.x
+    if not df_a.empty:
+        # Tenta identificar a coluna de performance (Total ou a última numérica)
+        col_ref = 'Total' if 'Total' in df_a.columns else df_a.select_dtypes(include='number').columns[-1]
         st.dataframe(
-            dados_filtrados.style.map(color_total, subset=['Total']),
-            use_container_width=True,
+            df_a.style.map(color_total, subset=[col_ref]), 
+            use_container_width=True, 
             hide_index=True
         )
     else:
-        st.warning("Nenhum dado encontrado para ACTIONS.")
+        st.warning("Nenhum dado encontrado para Actions.")
 
-with coluna2:
-    st.header('CRM 💼')
-    if not hora_filtrada.empty:
-        hora_consolidada = hora_filtrada.groupby(
-            ['NOME', 'DATA', 'SUPERVISOR', 'CONTATO DIRETO'], 
-            as_index=False
-        )['GESTIONES'].sum()
-
-        hora_consolidada = hora_consolidada.sort_values(['DATA', 'GESTIONES'], ascending=[False, False])
-
-        st.dataframe(
-            hora_consolidada.style.map(color_total, subset=['GESTIONES']),
-            use_container_width=True,
-            hide_index=True
-        )
-    else:
-        st.warning("Nenhum dado encontrado para CRM.")
-    st.header('CRM 💼')
-    if not hora_filtrada.empty:
-
-        hora_consolidada = hora_filtrada.groupby(
-            ['NOME', 'DATA', 'SUPERVISOR', 'CONTATO DIRETO'], 
-            as_index=False
-        )['GESTIONES'].sum()
-
-
-        hora_consolidada = hora_consolidada.sort_values(['DATA', 'GESTIONES'], ascending=[False, False])
+with col2:
+    st.header('CRM (HORA A HORA) 💼')
+    if not df_h.empty:
+        # Agrupamento dinâmico conforme as colunas presentes
+        colunas_agrupar = [c for c in ['OPERADOR', 'DATA', 'SUPERVISOR', 'CD'] if c in df_h.columns]
+        
+        # Consolidação e Ordenação
+        resumo_crm = df_h.groupby(colunas_agrupar, as_index=False)['GESTIONES'].sum()
+        resumo_crm = resumo_crm.sort_values(['DATA', 'GESTIONES'], ascending=[False, False])
 
         st.dataframe(
-            hora_consolidada.style.applymap(color_total, subset=['GESTIONES']),
-            use_container_width=True,
+            resumo_crm.style.map(color_total, subset=['GESTIONES']), 
+            use_container_width=True, 
             hide_index=True
         )
     else:
